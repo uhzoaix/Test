@@ -46,7 +46,7 @@ def one_hot_encoding(names):
 
 
 def test():
-	folder_path = '..\\data\\999\\'
+	folder_path = '/home/abaci/uhzoaix/999/'
 	# get all images path
 	image_path = tf.train.match_filenames_once(folder_path + '*.jpg')
 	# generate the input filename queue
@@ -55,8 +55,23 @@ def test():
 	reader = tf.WholeFileReader()
 	key, value = reader.read(file_queue)
 
-	images = tf.image.decode_jpeg(value,channels=3)
-	# tf.summary.image('input', images)
+	image = tf.image.decode_jpeg(value,channels=3)
+
+	image = tf.image.resize_images(image, [200,200])
+	image.set_shape((200,200,3))
+
+	batch_size = 20
+	num_preprocess_threads = 1
+	min_after_queue = 500
+
+	images = tf.train.shuffle_batch(
+			[image],
+			batch_size=batch_size,
+			num_threads=num_preprocess_threads,
+			capacity=min_after_queue + 3 * batch_size,
+			min_after_dequeue=min_after_queue)
+	
+	tf.summary.image('input', image)
 	merged = tf.summary.merge_all()
 
 	init = tf.global_variables_initializer()
@@ -64,16 +79,35 @@ def test():
 		sess.run(init)
 		
 		# visualization in Tensorboard
-		file_writer = tf.summary.FileWriter('./tmp/test/', sess.graph)
-		summary_str = sess.run(merged)
-		file_writer.add_summary(summary_str)
-		print("Summary writen")
+		# file_writer = tf.summary.FileWriter('./tmp/test/', sess.graph)
+		# summary_str = sess.run(merged)
+		# file_writer.add_summary(summary_str)
+		# print("Summary writen")
 
 		coord = tf.train.Coordinator()
 		threads = tf.train.start_queue_runners(coord=coord)
 
-		images_tensor = sess.run(images)
-		print(images_tensor.shape)
+		images_tensor = sess.run([images])
+		print(images_tensor[0].shape)
+
+		coord.request_stop()
+		coord.join(threads)
+
+
+def get_input_images(image_path):
+	# find all jpg files in the given path
+	paths = tf.train.match_filenames_once(image_path + "*.jpg")
+	file_queue = tf.train.string_input_producer(paths)
+
+	# create files reader
+	reader = tf.WholeFileReader()
+	key, value = reader.read(file_queue)
+
+	images = tf.image.decode_jpeg(value, channels=3)
+
+	print(images.shape)
+
 
 if __name__ == "__main__":
+	# get_input_images('/home/abaci/uhzoaix/999/')
 	test()
