@@ -70,7 +70,7 @@ def test():
 			num_threads=num_preprocess_threads,
 			capacity=min_after_queue + 3 * batch_size,
 			min_after_dequeue=min_after_queue)
-	
+
 	tf.summary.image('input', image)
 	merged = tf.summary.merge_all()
 
@@ -94,8 +94,10 @@ def test():
 		coord.join(threads)
 
 
-def get_input_images(image_path):
+def get_input_images_batch(image_path, shape, channels=3, batch_size, num_threads=1,min_after_dequeue=1000):
 	# find all jpg files in the given path
+	w,h = shape
+
 	paths = tf.train.match_filenames_once(image_path + "*.jpg")
 	file_queue = tf.train.string_input_producer(paths)
 
@@ -104,8 +106,17 @@ def get_input_images(image_path):
 	key, value = reader.read(file_queue)
 
 	images = tf.image.decode_jpeg(value, channels=3)
+	images = tf.image.resize_images(images, shape)
+	images.set_shape((w,h,channels))
 
-	print(images.shape)
+	image_batch = tf.train.shuffle_batch(
+		[images],
+		batch_size=batch_size,
+		num_threads=num_threads,
+		capacity=min_after_dequeue + 3 * batch_size,
+		min_after_dequeue=min_after_dequeue)
+
+	return image_batch
 
 
 if __name__ == "__main__":
