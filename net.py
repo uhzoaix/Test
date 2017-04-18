@@ -6,8 +6,10 @@ input and train network here
 import tensorflow as tf
 
 def conv_layer(input_tensor, kernel_size, bias_size, activate="relu", strides=1):
-	w = tf.get_variable("weights", shape=kernel_size)
-	b = tf.get_variable("biases", shape=bias_size)
+	w = tf.get_variable("weights", shape=kernel_size,
+			initializer=tf.random_uniform_initializer())
+	b = tf.get_variable("biases", shape=bias_size,
+			initializer=tf.random_uniform_initializer())
 
 	conv = tf.nn.conv2d(input_tensor, w, strides=[1, strides, strides, 1], padding="SAME")
 	result = tf.nn.bias_add(conv, b)
@@ -15,7 +17,7 @@ def conv_layer(input_tensor, kernel_size, bias_size, activate="relu", strides=1)
 	if activate == "relu":
 		result = tf.nn.relu(result)
 	else:
-		print("Your activate function not suppory")
+		print("Your activate function is not supported")
 		raise ValueError
 
 	return result
@@ -24,8 +26,10 @@ def conv_layer(input_tensor, kernel_size, bias_size, activate="relu", strides=1)
 def fc_layer(input_tensor, output_size, activate="relu"):
 	batch_size, feature_size = input_tensor.get_shape().as_list()
 	
-	w = tf.get_variable("weights", shape=[feature_size, output_size])
-	b = tf.get_variable("biases", shape=[output_size])
+	w = tf.get_variable("weights", shape=[feature_size, output_size],
+			initializer=tf.random_uniform_initializer())
+	b = tf.get_variable("biases", shape=[output_size],
+			initializer=tf.random_uniform_initializer())
 
 	result = tf.matmul(input_tensor, w) + b
 	# now input tensor has a size of [batch_size, output_size]
@@ -33,7 +37,7 @@ def fc_layer(input_tensor, output_size, activate="relu"):
 	if activate == "relu":
 		result = tf.nn.relu(result)
 	else :
-		print("Your activate function not suppory")
+		print("Your activate function is not supported")
 		raise ValueError
 
 	return result
@@ -58,12 +62,12 @@ def network(input_tensor, is_extract_feature=False):
 		return the feature tensor after several conv layer or the compressed softmax result		
 
 	"""
-	size_list = [size.value for size in input_tensor.get_shape()]
-	batch_size, w, h, c = size_list
+	batch_size, w, h, c = input_tensor.get_shape().as_list()
 
 	# define the first layer, a convolution layer, its kernel size is defined as 'conv1_size'
 	conv1_size = [3, 3, c, 16]
 	bias1_size = [16]
+
 	with tf.variable_scope("conv1") as scope:
 		conv1 = conv_layer(input_tensor, conv1_size, bias1_size)
 
