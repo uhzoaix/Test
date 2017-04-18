@@ -97,7 +97,7 @@ def network(input_tensor, is_extract_feature=False):
 
 	# define 6th layer, fc layer
 	with tf.variable_scope("fc2") as scope:
-		fc2 = fc_layer(fc1, output_size=4)
+		fc2 = fc_layer(fc1, output_size=5)
 
 	logits = fc2
 	return logits
@@ -112,6 +112,7 @@ def loss(_logits, _labels):
 		labels: 1d tensor, usually in one-hot format
 
 	"""
+		
 	# calculate a loss tensor of size [batch_size]
 	batch_loss = tf.nn.softmax_cross_entropy_with_logits(logits=_logits, labels=_labels)
 	# calculate the mean of the loss tensor as the final output of loss

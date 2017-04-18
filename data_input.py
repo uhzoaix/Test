@@ -210,7 +210,7 @@ def concatenate_data():
 
 
 if __name__ == "__main__":
-
+	# just for test
 	train_size=2000
 	train_image_batch, train_label_batch, test_image_batch, test_label_batch = get_images_batch_with_labels(
 		data_path= "../data/cat/",

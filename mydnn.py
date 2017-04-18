@@ -2,6 +2,8 @@ import numpy as np
 import tensorflow as tf
 import net
 
+import data_input
+
 class MyDNN():
 	"""docstring for MyDNN"""
 	def __init__(self):
@@ -10,6 +12,7 @@ class MyDNN():
 		self.batch_size_ = -1
 		self.images_num = -1
 		self.max_iters_ = 10000
+		self.display_step_ = 50
 
 
 	def init_parameters(self, 	learning_rate, 
@@ -33,31 +36,43 @@ class MyDNN():
 		step = step % max_steps if step % max_steps > 0 else max_steps
 		return range((step - 1) * bs, step * bs)
 
+	def get_label_batch(self, origin_label_batch, classes):
+		w = origin_label_batch.shape
+		print("w:{}".format(w))
 
-	def train(self, images, labels):
+		result = np.zeros((w,classes))
+		for i in range(w):
+			j = origin_label_batch[i]
+			result[i,j] = 1
+
+		return result
+
+	def train(self, images_num):
 		lr = self.lr_
 		batch_size = self.batch_size_
 
-		if type(images) == np.ndarray:
-			# print("Numpy input")
-			image_num, w, h, c = images.shape
-			label_num, classes = labels.shape	
-		else :
-			# tensor input
-			image_num, w, h, c = images.get_shape().as_list()
-			label_num, classes = labels.get_shape().as_list()
+		# get images and label batch
+		train_image_batch, train_label_batch, _, _ = data_input.get_images_batch_with_labels(
+			data_path="/home/abaci/uhzoaix/cat/",
+			shape=[200,200],
+			channels=3,
+			batch_size=batch_size,
+			train_size=images_num,
+			test_size=0)
 
-		if image_num != self.images_num_:
-			print("Wrong with the numbers of images,wtf!?")
-
+		w, h, c, classes = 200, 200 ,3, 5
 		x = tf.placeholder(tf.float32, [batch_size, w, h, c])
 		y = tf.placeholder(tf.float32, [batch_size, classes])
 
 		# construct the loss function and the optimizer
-		pred = net.network(x)
-		loss = net.loss(_logits=pred, _labels=y)
+		with tf.name_scope("Logits"):
+			pred = net.network(x)
 
-		optimizer = tf.train.AdamOptimizer(learning_rate=lr).minimize(loss)
+		with tf.name_scope("loss"):
+			loss = net.loss(_logits=pred, _labels=y)
+
+		with tf.name_scope("optimization"):
+			optimizer = tf.train.AdamOptimizer(learning_rate=lr).minimize(loss)
 
 		# Model Evaluation
 		correct_pred = tf.equal(tf.argmax(pred, 1), tf.argmax(y, 1))
@@ -70,20 +85,21 @@ class MyDNN():
 
 		with tf.Session() as sess:
 			sess.run(init)
+			coord = tf.train.Coordinator()
+			threads = tf.train.start_queue_runners(coord=coord)
 
 			step = 1
-			batch_range = self.get_batch_range(step)
-			max_steps = int(images_num / batch_size)
 
 			while step <= self.max_iters_:
-				batch_images, batch_labels = images[batch_range], labels[batch_range]
+				image_batch, label_batch = sess.run([train_image_batch, train_label_batch])
+				label_batch = self.get_label_batch(label_batch, classes)
 
-				sess.run(optimizer, feed_dict = {x : batch_images, y : batch_labels})
+				sess.run(optimizer, feed_dict = {x : image_batch, y : label_batch})
 
-				if step % max_steps == 0:
-					l, acc = sess.run ([loss, accuracy], feed_dict = {x : batch_images, y: batch_labels})
+				if step % self.display_step_ == 0:
+					l, acc = sess.run ([loss, accuracy], feed_dict = {x : image_batch, y: label_batch})
 
-					print("[Step{}]---->{} images completed".format(step, step * batch_size))
+					print("[Step{}]".format(step))
 					print("Now, the batch loss is {:.6f}, accuracy is {:.5f}".format(l, acc))
 
 				step += 1
@@ -91,6 +107,9 @@ class MyDNN():
 			print("Optimization Finished!")
 			
 			saver.save(sess, "./tmp/model.ckpt")
+
+			coord.request_stop()
+			coord.join(threads)
 			print("Have save all variables to " + "./tmp/model.ckpt")
 
 
@@ -101,6 +120,7 @@ if __name__ == "__main__":
 	test_nn = MyDNN()
 	# test_nn.init_parameters(learning_rate=0.5, batch_size=2)
 	# test_nn.train(test_x, test_y)
-	test_nn.init_parameters(learning_rate=0.5, batch_size=2, images_num=8, max_iters=10000)
-	print(test_nn.get_batch_range(100))
+	test_nn.init_parameters(learning_rate=0.5, batch_size=20, images_num=8, max_iters=10000)
+
+	test_nn.train(images_num = 3600)
 
