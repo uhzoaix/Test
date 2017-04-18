@@ -3,7 +3,7 @@ import tensorflow as tf
 import net
 
 import data_input
-from PIL
+from PIL import Image
 
 class MyDNN():
 	"""docstring for MyDNN"""
@@ -11,19 +11,16 @@ class MyDNN():
 		super(MyDNN, self).__init__()
 		self.lr_ = 0.5
 		self.batch_size_ = -1
-		self.images_num = -1
 		self.max_iters_ = 10000
 		self.display_step_ = 50
 
 
 	def init_parameters(self, 	learning_rate, 
 								batch_size,
-								images_num,
 								max_iters
 								):
 		self.lr_ = learning_rate
 		self.batch_size_ = batch_size
-		self.images_num_ = images_num
 		self.max_iters_ = max_iters
 
 
@@ -54,26 +51,27 @@ class MyDNN():
 		batch_size = self.batch_size_
 
 		# get images and label batch
-		train_image_batch, train_label_batch, _, _ = data_input.get_images_batch_with_labels(
-			data_path=data_path,
-			shape=[200,200],
-			channels=3,
-			batch_size=batch_size,
-			train_size=images_num,
-			test_size=0)
+		with tf.name_scope("input"):
+			train_image_batch, train_label_batch, _, _ = data_input.get_images_batch_with_labels(
+				data_path=data_path,
+				shape=[200,200],
+				channels=3,
+				batch_size=batch_size,
+				train_size=images_num,
+				test_size=0)
 
-		w, h, c, classes = 200, 200 ,3, 5
-		x = tf.placeholder(tf.float32, [batch_size, w, h, c])
-		y = tf.placeholder(tf.float32, [batch_size, classes])
-		print("X: ", x.name)
-		print("Y: ", y.name)
+			w, h, c, classes = 200, 200 ,3, 5
+			x = tf.placeholder(tf.float32, [batch_size, w, h, c])
+			y = tf.placeholder(tf.float32, [batch_size, classes])
 		# construct the loss function and the optimizer
 
 		with tf.name_scope("Logits"):
 			pred = net.network(x)
+			tf.summary.histogram("pred", pred)
 
 		with tf.name_scope("loss"):
 			loss = net.loss(_logits=pred, _labels=y)
+			tf.summary.scalar("loss", loss)
 
 		with tf.name_scope("optimization"):
 			optimizer = tf.train.AdamOptimizer(learning_rate=lr).minimize(loss)
@@ -82,10 +80,10 @@ class MyDNN():
 			# Model Evaluation
 			correct_pred = tf.equal(tf.argmax(pred, 1), tf.argmax(y, 1))
 			accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
+			tf.summary.scalar("accuracy", accuracy)
 
 		# for summary issues
-		tf.summary.scalar("loss", loss)
-		tf.summary.scalar("accuracy", accuracy)
+		tf.summary.image("batch images", train_image_batch, max_outputs=20)
 
 		summary_op = tf.summary.merge_all()
 
@@ -108,6 +106,13 @@ class MyDNN():
 				image_batch, label_batch = sess.run([train_image_batch, train_label_batch])
 				label_batch = self.get_label_batch(label_batch, classes)
 
+				# debug
+				# img = train_label_batch.eval()
+				# for i in range(batch_size):
+				# 	print(img[i].shape)
+				# 	Image.fromarray(np.asarray(img[i])).show()
+				# raise ValueError
+				# debug
 				sess.run(optimizer, feed_dict = {x : image_batch, y : label_batch})
 
 				if step % self.display_step_ == 0:
@@ -136,10 +141,10 @@ if __name__ == "__main__":
 	test_nn = MyDNN()
 	# test_nn.init_parameters(learning_rate=0.5, batch_size=2)
 	# test_nn.train(test_x, test_y)
-	test_nn.init_parameters(learning_rate=0.1, batch_size=20, images_num=8, max_iters=10000)
+	test_nn.init_parameters(learning_rate=0.01, batch_size=20, max_iters=20000)
 
 	with tf.Graph().as_default():
-		is_linux = False
+		is_linux = True
 		if is_linux:
 			test_nn.train(images_num = 3600, data_path="/home/abaci/uhzoaix/cat/")
 		else :

@@ -181,7 +181,7 @@ def image_prepocessing(decode_image, shape, channels):
 	decode_image = tf.image.resize_image_with_crop_or_pad(decode_image, w, h)
 	decode_image.set_shape([w, h, channels])
 	# standarization
-	# decode_image = tf.image.per_image_standardization(decode_image)
+	decode_image = tf.image.per_image_standardization(decode_image)
 
 	return decode_image
 
