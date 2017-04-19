@@ -139,13 +139,18 @@ def get_input_images_batch(image_path, shape, channels=3, batch_size=20, num_thr
 	return image_batch
 
 
-def image_prepocessing(decode_image, shape, channels):
+def image_prepocessing(decode_image, shape, channels, distorted=False):
 	w,h = shape
 	# convert the image to float
 	decode_image = tf.image.convert_image_dtype(decode_image, tf.float32)
 	# resize the image, and convert its data type to float
 	decode_image = tf.image.resize_image_with_crop_or_pad(decode_image, w, h)
 	decode_image.set_shape([w, h, channels])
+
+	if distorted:
+		decode_image = tf.image.random_flip_left_right(decode_image)
+		decode_image = tf.image.random_brightness(decode_image, max_delta=63)
+		decode_image = tf.image.random_constrast(decode_image, lower=0.2, upper=1.8)
 	# standarization
 	decode_image = tf.image.per_image_standardization(decode_image)
 

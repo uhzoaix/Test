@@ -176,5 +176,10 @@ if __name__ == "__main__":
 					data_path="/home/abaci/uhzoaix/data/",
 					logdir = './tmp/alexnet')
 		else :
-			test_nn.train(train_size = 3600, test_size=500, data_path="../data/cat/")
+			test_nn.train(
+					train_size = 3600, 
+					test_size=500, 
+					data_path="../data/cat/",
+					logdir = './tmp/alexnet')
+
 
