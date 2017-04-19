@@ -26,7 +26,11 @@ def conv_layer(input_tensor, kernel_size, bias_size, name, activate="relu", stri
 
 def fc_layer(input_tensor, output_size, name, activate="relu"):
 	with tf.variable_scope(name):
-		batch_size, feature_size = input_tensor.get_shape().as_list()
+		try :
+			batch_size, feature_size = input_tensor.get_shape().as_list()
+		except ValueError:
+			print(input_tensor.shape)
+			raise ValueError
 		
 		w = tf.get_variable("weights", shape=[feature_size, output_size],
 				initializer=tf.random_uniform_initializer())
@@ -123,7 +127,7 @@ def alexnet(input_tensor, classes_num, dropout_prob=0.5):
 					strides=4)
 
 		conv1 = pooling_layer(
-					name = 'pooling 1',
+					name = 'pooling1',
 					input_tensor = conv1,
 					k = 2)
 
@@ -137,7 +141,7 @@ def alexnet(input_tensor, classes_num, dropout_prob=0.5):
 					bias_size = [256])
 
 		conv2 = pooling_layer(
-					name = 'pooling 2',
+					name = 'pooling2',
 					input_tensor = conv2,
 					k = 2)
 
@@ -165,16 +169,19 @@ def alexnet(input_tensor, classes_num, dropout_prob=0.5):
 					bias_size = [256])
 
 		conv5 = pooling_layer(
-					name = 'pooling 3',
+					name = 'pooling3',
 					input_tensor = conv5,
 					k = 2)
 
 		# define the 6th layer, full connected layer
+		conv5 = tf.reshape(conv5, shape=[batch_size, -1])
+
 		fc1 = fc_layer(
 					name = 'fc1',
-					input_tensor = 'conv5',
+					input_tensor = conv5,
 					output_size = 4096
 					)
+
 		fc1 = tf.nn.dropout(fc1, dropout_prob)
 
 		# define the 7th layer, full connected layer
@@ -182,6 +189,7 @@ def alexnet(input_tensor, classes_num, dropout_prob=0.5):
 					name = 'fc2',
 					input_tensor = fc1,
 					output_size = 4096)
+
 		fc2 = tf.nn.dropout(fc2, dropout_prob)
 
 		# calculate logits, 
@@ -201,21 +209,27 @@ def loss(_logits, _labels, regularization_lambda):
 		labels: 1d tensor, usually in one-hot format
 
 	"""
-		
+	regularization_loss = 0
+	if regularization_lambda != 0:
+		var_list = tf.global_variables()
+
+		for var in var_list:
+			regularization_loss += tf.nn.l2_loss(var)
+
+	regularization_loss = regularization_lambda * regularization_loss
 	# calculate a loss tensor of size [batch_size]
 	batch_loss = tf.nn.softmax_cross_entropy_with_logits(logits=_logits, labels=_labels)
 	# calculate the mean of the loss tensor as the final output of loss
-	return tf.reduce_mean(batch_loss)
+	return tf.reduce_mean(batch_loss) + regularization_loss
 
 
 if __name__ == "__main__":
 	# for test
 	print("Only for test, you won't see this message unless you directly run this file")
-	x = tf.placeholder(tf.float32, [20,200,200,3])
-	y = tf.placeholder(tf.float32, [20,5])
+	with tf.Graph().as_default():
+		x = tf.placeholder(tf.float32, [20,200,200,3])
+		y = tf.placeholder(tf.float32, [20,5])
 
-	test_logits = alexnet(x, 5)
+		test_logits = alexnet(x, 5)
 
-	var_list = tf.contrib.framework.get_model_variables(scope="alexnet")
-	for var in var_list:
-		print(var)
+		loss = loss(test_logits, y, 0.05)

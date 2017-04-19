@@ -4,6 +4,7 @@ import net
 
 import data_input
 from PIL import Image
+from datetime import datetime
 
 class MyDNN():
 	"""docstring for MyDNN"""
@@ -47,9 +48,13 @@ class MyDNN():
 		return result
 
 
-	def train(self, train_size, test_size, data_path):
+	def train(self, train_size, test_size, data_path, logdir):
 		lr = self.lr_
 		batch_size = self.batch_size_
+
+		f= open("log.txt", 'w')
+		print("Train log file", file=f)
+		print("Time: ", str(datetime.now()), file=f)
 
 		# get images and label batch
 		with tf.name_scope("input"):
@@ -73,11 +78,11 @@ class MyDNN():
 		# construct the loss function and the optimizer
 
 		with tf.name_scope("Logits"):
-			pred = net.network(x)
+			pred = net.alexnet(x)
 			tf.summary.histogram("pred", pred)
 
 		with tf.name_scope("loss"):
-			loss = net.loss(_logits=pred, _labels=y)
+			loss = net.loss(_logits=pred, _labels=y, regularization_lambda=0.05)
 			tf.summary.scalar("loss", loss)
 
 		with tf.name_scope("optimization"):
@@ -105,7 +110,7 @@ class MyDNN():
 			coord = tf.train.Coordinator()
 			threads = tf.train.start_queue_runners(coord=coord)
 
-			summary_writer = tf.summary.FileWriter("./tmp/train/", graph=sess.graph)
+			summary_writer = tf.summary.FileWriter(logdir, graph=sess.graph)
 
 			step = 1
 
@@ -137,6 +142,7 @@ class MyDNN():
 						test_acc += acc
 
 					print("[STEP{}]The test accuracy is:{}".format(step, test_acc/max_steps))
+					print("[STEP{}]The test accuracy is:{}".format(step, test_acc/max_steps), file=f)
 					print("[STEP{}]test complete!".format(step))
 
 				step += 1
@@ -148,6 +154,8 @@ class MyDNN():
 			coord.request_stop()
 			coord.join(threads)
 			print("Have save all variables to " + "./tmp/model.ckpt")
+
+		f.close()
 
 
 if __name__ == "__main__":
@@ -162,7 +170,11 @@ if __name__ == "__main__":
 	with tf.Graph().as_default():
 		is_linux = True
 		if is_linux:
-			test_nn.train(train_size = 3600, test_size=500, data_path="/home/abaci/uhzoaix/data/")
+			test_nn.train(
+					train_size = 3600, 
+					test_size=500, 
+					data_path="/home/abaci/uhzoaix/data/",
+					logdir = './tmp/alexnet')
 		else :
 			test_nn.train(train_size = 3600, test_size=500, data_path="../data/cat/")
 
