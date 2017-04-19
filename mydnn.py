@@ -24,15 +24,10 @@ class MyDNN():
 		self.max_iters_ = max_iters
 
 
-	def get_batch_range(self, step):
-		bs = self.batch_size_
-		images_num = self.images_num_
-		if images_num < bs:
-			raise ValueError
+	def calc_test_accuracy(self, session, test_images, test_labels):
 
-		max_steps = int(images_num / bs)
-		step = step % max_steps if step % max_steps > 0 else max_steps
-		return range((step - 1) * bs, step * bs)
+
+		return acc
 
 	def get_label_batch(self, origin_label_batch, classes):
 		w = origin_label_batch.shape[0]
@@ -42,23 +37,35 @@ class MyDNN():
 		result = np.zeros((w,classes))
 		for i in range(w):
 			j = origin_label_batch[i]
-			result[i,j] = 1
+			try:
+				result[i,j] = 1
+			except IndexError:
+				print("i:{}, j:{}".format(i,j))
+				raise IndexError
+
 
 		return result
 
-	def train(self, images_num, data_path):
+
+	def train(self, train_size, test_size, data_path):
 		lr = self.lr_
 		batch_size = self.batch_size_
 
 		# get images and label batch
 		with tf.name_scope("input"):
-			train_image_batch, train_label_batch, _, _ = data_input.get_images_batch_with_labels(
-				data_path=data_path,
+			train_image_batch, train_label_batch = data_input.get_images_batch_with_labels(
+				data_path=data_path + "train/",
 				shape=[200,200],
 				channels=3,
 				batch_size=batch_size,
-				train_size=images_num,
-				test_size=0)
+				data_size=train_size)
+
+			test_image_batch, test_label_batch = data_input.get_images_batch_with_labels(
+				data_path = data_path + "test/",
+				shape=[200,200],
+				channels=3,
+				batch_size = batch_size,
+				data_size=test_size)
 
 			w, h, c, classes = 200, 200 ,3, 5
 			x = tf.placeholder(tf.float32, [batch_size, w, h, c])
@@ -106,22 +113,31 @@ class MyDNN():
 				image_batch, label_batch = sess.run([train_image_batch, train_label_batch])
 				label_batch = self.get_label_batch(label_batch, classes)
 
-				# debug
-				# img = train_label_batch.eval()
-				# for i in range(batch_size):
-				# 	print(img[i].shape)
-				# 	Image.fromarray(np.asarray(img[i])).show()
-				# raise ValueError
-				# debug
 				sess.run(optimizer, feed_dict = {x : image_batch, y : label_batch})
 
 				if step % self.display_step_ == 0:
 					l, acc, summary = sess.run ([loss, accuracy, summary_op], feed_dict = {x : image_batch, y: label_batch})
 
 					print("[Step{}]".format(step))
-					print("Now, the batch loss is {:.6f}, accuracy is {:.5f}".format(l, acc))
+					print("[Step{}]The batch loss is {:.6f}, accuracy is {:.5f}".format(step, l, acc))
 
 					summary_writer.add_summary(summary, step)
+
+				if step % (10 * self.display_step_) == 0:
+					# calculate the accuracy on the test dataset
+					print("[STEP{}]test time!".format(step))
+					max_steps = int(test_size / batch_size)
+
+					test_acc = 0
+					for i in range(max_steps):
+						test_images, test_labels = sess.run([test_image_batch, test_label_batch])
+						test_labels = self.get_label_batch(test_labels, classes)
+
+						acc = sess.run(accuracy, feed_dict={x: test_images, y: test_labels})
+						test_acc += acc
+
+					print("[STEP{}]The test accuracy is:{}".format(step, test_acc/max_steps))
+					print("[STEP{}]test complete!".format(step))
 
 				step += 1
 
@@ -146,7 +162,7 @@ if __name__ == "__main__":
 	with tf.Graph().as_default():
 		is_linux = True
 		if is_linux:
-			test_nn.train(images_num = 3600, data_path="/home/abaci/uhzoaix/cat/")
+			test_nn.train(train_size = 3600, test_size=500, data_path="/home/abaci/uhzoaix/data/")
 		else :
-			test_nn.train(images_num=3600, data_path="../data/cat/")
+			test_nn.train(train_size = 3600, test_size=500, data_path="../data/cat/")
 

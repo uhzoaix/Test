@@ -72,12 +72,12 @@ def test():
 		coord.request_stop()
 		coord.join(threads)
 
-def get_images_batch_with_labels(data_path, shape, channels, batch_size, train_size, test_size):
-	data_size = test_size + train_size
 
+def get_images_batch_with_labels(data_path, shape, channels, batch_size, data_size):
 	images_filename = [None] * data_size
 	labels_filename = [None] * data_size
 
+	# get images filename from file_list.txt,
 	with open(data_path+"file_list.txt", 'r') as f:
 		for i, line in enumerate(f.readlines()):
 			if i >= data_size:
@@ -88,65 +88,30 @@ def get_images_batch_with_labels(data_path, shape, channels, batch_size, train_s
 			images_filename[i] = data_path + line + ".jpg"
 			labels_filename[i] = int(line[0])
 
-
-		# handle the case, the exact data size is less than data_size
-		# nothing happen if more than it
+		
 		if None in images_filename and None in labels_filename:
 			images_filename.remove(None)
 			labels_filename.remove(None)
-			assert(len(images_filename) == len(labels_filename))
-			
-			actual_size = len(labels_filename)
-			train_size = int(actual_size * train_size / data_size)
-			data_size = actual_size
-			test_size = data_size - train_size
 
-		print("Actual data size: ", data_size)
-		print("Actual train size: ", train_size)
-		print("Actual test size: ", test_size)
+	# create filenames input queue, and return image and label batch
 
-	# create TRAIN filenames input queue, and return image and label batch
+	images_filename = tf.convert_to_tensor(images_filename, dtype=tf.string)
+	labels_filename = tf.convert_to_tensor(labels_filename, dtype=tf.int32)
 
-	train_images_filename = tf.convert_to_tensor(images_filename[:train_size], dtype=tf.string)
-	train_labels_filename = tf.convert_to_tensor(labels_filename[:train_size], dtype=tf.int32)
-
-	train_input_queue = tf.train.slice_input_producer(
-		[train_images_filename, train_labels_filename],
+	input_queue = tf.train.slice_input_producer(
+		[images_filename, labels_filename],
 		shuffle=True)
 
-	file_content = tf.read_file(train_input_queue[0])
-	train_image = tf.image.decode_jpeg(file_content, channels=3)
-	train_label = train_input_queue[1]
+	file_content = tf.read_file(input_queue[0])
+	image = tf.image.decode_jpeg(file_content, channels=3)
+	label = input_queue[1]
 
-	train_image = image_prepocessing(train_image, shape=shape, channels=channels)
-	train_image_batch, train_label_batch = tf.train.batch(
-		[train_image, train_label],
+	image = image_prepocessing(image, shape=shape, channels=channels)
+	image_batch, label_batch = tf.train.batch(
+		[image, label],
 		batch_size=20)
 
-	# create TEST filenames input queue, and return image and label batch
-	if test_size == 0:
-		test_images_filename = tf.convert_to_tensor(images_filename[data_size-test_size:], dtype=tf.string)
-		test_labels_filename = tf.convert_to_tensor(labels_filename[data_size-test_size:], dtype=tf.int32)
-
-		test_input_queue = tf.train.slice_input_producer(
-			[test_images_filename, test_labels_filename],
-			shuffle=True)
-
-		file_content = tf.read_file(test_input_queue[0])
-		test_image = tf.image.decode_jpeg(file_content, channels=3)
-		test_label = test_input_queue[1]
-
-		test_image = image_prepocessing(test_image, shape=[200,200], channels=3)
-
-		test_image_batch, test_label_batch = tf.train.batch(
-			[test_image, test_label],
-			batch_size=20)
-
-		return train_image_batch, train_label_batch, test_image_batch, test_label_batch
-
-
-	# when test_size equals zero
-	return train_image_batch, train_label_batch, 0, 0
+	return image_batch, label_batch
 
 
 def get_input_images_batch(image_path, shape, channels=3, batch_size=20, num_threads=1, min_after_dequeue=1000):
@@ -172,6 +137,7 @@ def get_input_images_batch(image_path, shape, channels=3, batch_size=20, num_thr
 		min_after_dequeue=min_after_dequeue)
 
 	return image_batch
+
 
 def image_prepocessing(decode_image, shape, channels):
 	w,h = shape
