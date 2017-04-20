@@ -78,11 +78,11 @@ class MyDNN():
 		# construct the loss function and the optimizer
 
 		with tf.name_scope("Logits"):
-			pred = net.alexnet(x)
+			pred = net.alexnet(x, classes)
 			tf.summary.histogram("pred", pred)
 
 		with tf.name_scope("loss"):
-			loss = net.loss(_logits=pred, _labels=y, regularization_lambda=0.05)
+			loss = net.loss(_logits=pred, _labels=y, regularization_lambda=0)
 			tf.summary.scalar("loss", loss)
 
 		with tf.name_scope("optimization"):
@@ -165,7 +165,7 @@ if __name__ == "__main__":
 	test_nn = MyDNN()
 	# test_nn.init_parameters(learning_rate=0.5, batch_size=2)
 	# test_nn.train(test_x, test_y)
-	test_nn.init_parameters(learning_rate=0.01, batch_size=20, max_iters=20000)
+	test_nn.init_parameters(learning_rate=0.01, batch_size=40, max_iters=100000)
 
 	with tf.Graph().as_default():
 		is_linux = True
