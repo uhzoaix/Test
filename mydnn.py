@@ -18,17 +18,21 @@ class MyDNN():
 
 	def init_parameters(self, 	learning_rate, 
 								batch_size,
-								max_iters
+								max_iters,
+								regularization_lambda,
 								):
 		self.lr_ = learning_rate
 		self.batch_size_ = batch_size
 		self.max_iters_ = max_iters
+		self.reg_para_ = regularization_lambda
 
+	def get_log_name(self):
+		lr = self.lr_
+		bs = self.batch_size_
+		max_iters = self.max_iters_
+		reg_para = self.reg_para_
 
-	def calc_test_accuracy(self, session, test_images, test_labels):
-
-
-		return acc
+		return "lr{}_bs{}_maxiters{}_reg{}".format(lr, bs, max_iters, reg_para)
 
 	def get_label_batch(self, origin_label_batch, classes):
 		w = origin_label_batch.shape[0]
@@ -48,11 +52,11 @@ class MyDNN():
 		return result
 
 
-	def train(self, train_size, test_size, data_path, logdir):
+	def train(self, train_size, test_size, data_path, logname):
 		lr = self.lr_
 		batch_size = self.batch_size_
 
-		f= open("log.txt", 'w')
+		f= open('./log_file/' + logname + '.txt', 'w')
 		print("Train log file", file=f)
 		print("Time: ", str(datetime.now()), file=f)
 
@@ -72,30 +76,34 @@ class MyDNN():
 				batch_size = batch_size,
 				data_size=test_size)
 
+
 			w, h, c, classes = 200, 200 ,3, 5
 			x = tf.placeholder(tf.float32, [batch_size, w, h, c])
 			y = tf.placeholder(tf.float32, [batch_size, classes])
 		# construct the loss function and the optimizer
 
 		with tf.name_scope("Logits"):
+			# pred = net.alexnet(x, classes)
 			pred = net.alexnet(x, classes)
 			tf.summary.histogram("pred", pred)
 
 		with tf.name_scope("loss"):
-			loss = net.loss(_logits=pred, _labels=y, regularization_lambda=0)
+			loss, reg_loss = net.loss(_logits=pred, _labels=y, regularization_lambda=self.reg_para_)
 			tf.summary.scalar("loss", loss)
 
 		with tf.name_scope("optimization"):
 			optimizer = tf.train.AdamOptimizer(learning_rate=lr).minimize(loss)
 
+			grads = tf.gradients(loss, pred)
+			tf.summary.histogram("grad", grads)
+
 		with tf.name_scope("accuracy"):
 			# Model Evaluation
 			correct_pred = tf.equal(tf.argmax(pred, 1), tf.argmax(y, 1))
 			accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
-			tf.summary.scalar("accuracy", accuracy)
+			acc_summary = tf.summary.scalar("accuracy", accuracy)
 
 		# for summary issues
-		tf.summary.image("batch images", train_image_batch, max_outputs=20)
 
 		summary_op = tf.summary.merge_all()
 
@@ -110,9 +118,11 @@ class MyDNN():
 			coord = tf.train.Coordinator()
 			threads = tf.train.start_queue_runners(coord=coord)
 
-			summary_writer = tf.summary.FileWriter(logdir, graph=sess.graph)
+			summary_writer = tf.summary.FileWriter('./tmp/train/' + logname, graph=sess.graph)
+			summary_writer_test = tf.summary.FileWriter('./tmp/test/' + logname, graph=sess.graph)
 
 			step = 1
+			max_test_acc = -1
 
 			while step <= self.max_iters_:
 				image_batch, label_batch = sess.run([train_image_batch, train_label_batch])
@@ -121,10 +131,10 @@ class MyDNN():
 				sess.run(optimizer, feed_dict = {x : image_batch, y : label_batch})
 
 				if step % self.display_step_ == 0:
-					l, acc, summary = sess.run ([loss, accuracy, summary_op], feed_dict = {x : image_batch, y: label_batch})
+					l, reg_l, acc, summary = sess.run ([loss, reg_loss, accuracy, summary_op], feed_dict = {x : image_batch, y: label_batch})
 
 					print("[Step{}]".format(step))
-					print("[Step{}]The batch loss is {:.6f}, accuracy is {:.5f}".format(step, l, acc))
+					print("[Step{}]The batch loss is {:.6f}(reg loss{:.6f}), accuracy is {:.5f}".format(step, l, reg_l, acc))
 
 					summary_writer.add_summary(summary, step)
 
@@ -138,23 +148,31 @@ class MyDNN():
 						test_images, test_labels = sess.run([test_image_batch, test_label_batch])
 						test_labels = self.get_label_batch(test_labels, classes)
 
-						acc = sess.run(accuracy, feed_dict={x: test_images, y: test_labels})
-						test_acc += acc
+						test_batch_acc = sess.run(accuracy, feed_dict = {x : test_images, y : test_labels})
 
-					print("[STEP{}]The test accuracy is:{}".format(step, test_acc/max_steps))
-					print("[STEP{}]The test accuracy is:{}".format(step, test_acc/max_steps), file=f)
+						test_acc += test_batch_acc
+
+					test_acc = test_acc / max_steps
+					if test_acc > max_test_acc:
+						max_test_acc = test_acc
+
+					print("[STEP{}]The test accuracy is:{}".format(step, test_acc))
+					print("[STEP{}]The test accuracy is:{}".format(step, test_acc), file=f)
 					print("[STEP{}]test complete!".format(step))
 
 				step += 1
 
 			print("Optimization Finished!")
 			
-			saver.save(sess, "./tmp/model.ckpt")
+			log_name = self.get_log_name()
+			saver.save(sess, "./model/" + log_name + "_model.ckpt")
 
 			coord.request_stop()
 			coord.join(threads)
-			print("Have save all variables to " + "./tmp/model.ckpt")
+			print("Have save all variables to " + "./model/"+ log_name + "_model.ckpt")
 
+		print("Max test accuracy:{}".format(max_test_acc), file=f)
+		print("End time: ", str(datetime.now()), file=f)
 		f.close()
 
 
@@ -163,9 +181,14 @@ if __name__ == "__main__":
 	# test_y = np.random.rand(8,4)
 
 	test_nn = MyDNN()
-	# test_nn.init_parameters(learning_rate=0.5, batch_size=2)
-	# test_nn.train(test_x, test_y)
-	test_nn.init_parameters(learning_rate=0.01, batch_size=40, max_iters=100000)
+
+	test_nn.init_parameters(
+				learning_rate=0.001, 
+				batch_size=50, 
+				max_iters=100000, 
+				regularization_lambda=0.0005)
+
+	log_name = test_nn.get_log_name()
 
 	with tf.Graph().as_default():
 		is_linux = True
@@ -174,7 +197,7 @@ if __name__ == "__main__":
 					train_size = 3600, 
 					test_size=500, 
 					data_path="/home/abaci/uhzoaix/data/",
-					logdir = './tmp/alexnet')
+					logname = log_name)
 		else :
 			test_nn.train(
 					train_size = 3600, 

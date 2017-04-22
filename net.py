@@ -8,12 +8,17 @@ import tensorflow as tf
 def conv_layer(input_tensor, kernel_size, bias_size, name, activate="relu", strides=1):
 	with tf.variable_scope(name) :
 		w = tf.get_variable("weights", shape=kernel_size,
-				initializer=tf.random_uniform_initializer())
+				initializer=tf.contrib.layers.xavier_initializer(uniform=True))
+
+		tf.summary.histogram(w.name, w)
+		
 		b = tf.get_variable("biases", shape=bias_size,
-				initializer=tf.random_uniform_initializer())
+				initializer=tf.contrib.layers.xavier_initializer(uniform=True))
 
 		conv = tf.nn.conv2d(input_tensor, w, strides=[1, strides, strides, 1], padding="SAME")
 		result = tf.nn.bias_add(conv, b)
+
+		tf.summary.histogram(b.name, b)
 
 		if activate == "relu":
 			result = tf.nn.relu(result)
@@ -33,15 +38,23 @@ def fc_layer(input_tensor, output_size, name, activate="relu"):
 			raise ValueError
 		
 		w = tf.get_variable("weights", shape=[feature_size, output_size],
-				initializer=tf.random_uniform_initializer())
+				initializer=tf.contrib.layers.xavier_initializer(uniform=True))
+
+		tf.summary.histogram(w.name, w)
+
 		b = tf.get_variable("biases", shape=[output_size],
-				initializer=tf.random_uniform_initializer())
+				initializer=tf.contrib.layers.xavier_initializer(uniform=True))
+
+		tf.summary.histogram(b.name, b)
 
 		result = tf.matmul(input_tensor, w) + b
 		# now input tensor has a size of [batch_size, output_size]
 
 		if activate == "relu":
 			result = tf.nn.relu(result)
+			# do nothing
+		elif activate == "none":
+			pass
 		else :
 			print("Your activate function is not supported")
 			raise ValueError
@@ -49,14 +62,16 @@ def fc_layer(input_tensor, output_size, name, activate="relu"):
 	return result
 
 
-def pooling_layer(input_tensor, k, name):
+def pooling_layer(input_tensor, kernel_size, strides, name, padding='VALID'):
 	with tf.name_scope(name):
-		pooling = tf.nn.max_pool(input_tensor, ksize=[1, k, k, 1], strides=[1, k, k, 1], padding="SAME")
+		k_h, k_w = kernel_size
+		s_h, s_w = strides
+		pooling = tf.nn.max_pool(input_tensor, ksize=[1, k_h, k_w, 1], strides=[1, s_h, s_w, 1], padding=padding)
 
 	return pooling
 
 
-def network(input_tensor, classes_num, is_extract_feature=False):
+def lenet(input_tensor, classes_num, is_extract_feature=False):
 	"""define network structure 
 		
 	Args: 
@@ -72,45 +87,40 @@ def network(input_tensor, classes_num, is_extract_feature=False):
 	batch_size, w, h, c = input_tensor.get_shape().as_list()
 
 	# define the first layer, a convolution layer, its kernel size is defined as 'conv1_size'
-	conv1_size = [3, 3, c, 16]
-	bias1_size = [16]
 
-	with tf.variable_scope("conv1") as scope:
-		conv1 = conv_layer(input_tensor, conv1_size, bias1_size, name='conv1')
+	conv1 = conv_layer(
+				input_tensor = input_tensor, 
+				kernel_size = [5, 5, c, 32], 
+				bias_size = [32], 
+				name='conv1')
 
 	# define the 2nd layer, max pooling layer 
-	pooling_k = 2
-	with tf.variable_scope("pooling1") as scope:
-		pooling1 = pooling_layer(conv1, pooling_k, name='pool1')
+	conv1 = pooling_layer(conv1, 2, name='pool1')
 
 	# define the 3rd layer, convolutional layer
 	# 8 inputs channels and 32 outputs channels
-	conv2_size = [3, 3, 16, 32]
-	bias2_size = [32]
-	with tf.variable_scope("conv2") as scope:
-		conv2 = conv_layer(pooling1, conv2_size, bias2_size, name='conv2')
+	conv2 = conv_layer(
+				input_tensor = conv1, 
+				kernel_size = [5, 5, 32, 64], 
+				bias_size = [64], 
+				name='conv2')
 
 	# define 4th layer,  max pooling layer
-	pooling_k2 = 2
-	with tf.variable_scope("pooling2") as scope:
-		pooling2 = pooling_layer(conv2, pooling_k2, name='pool2')
+	conv2 = pooling_layer(conv2, 2, name='pool2')
 
 	# defube 5th layer, full connected layer
 	# reshape the 4d tensor to tensor of size [batch size, width*height*channels] 
 
-	pooling2 = tf.reshape(pooling2, shape=[batch_size, -1])
-	with tf.variable_scope("fc1") as scope:
-		fc1 = fc_layer(pooling2, output_size=128, name='fc1')
+	conv2 = tf.reshape(conv2, shape=[batch_size, -1])
+	fc1 = fc_layer(conv2, output_size=1024, name='fc1')
 
 	# apply dropout, probability to keep units 
-	dropout_prob = 0.75
+	dropout_prob = 0.5
 	fc1 = tf.nn.dropout(fc1, dropout_prob)
 
 	# define 6th layer, fc layer
-	with tf.variable_scope("fc2") as scope:
-		fc2 = fc_layer(fc1, output_size=classes_num, name='fc2')
+	logits = fc_layer(fc1, output_size=classes_num, activate="none", name='logits')
 
-	logits = fc2
 	return logits
 
 
@@ -126,12 +136,14 @@ def alexnet(input_tensor, classes_num, dropout_prob=0.5):
 					bias_size = [96],
 					strides=4)
 
+		conv1 = tf.nn.lrn(conv1)
+
 		conv1 = pooling_layer(
 					name = 'pooling1',
 					input_tensor = conv1,
-					k = 2)
+					kernel_size = [3,3],
+					strides=[2,2])
 
-		conv1 = tf.nn.lrn(conv1)
 
 		#define 2nd layer, convolutional layer, apply max pooling
 		conv2 = conv_layer(
@@ -140,12 +152,13 @@ def alexnet(input_tensor, classes_num, dropout_prob=0.5):
 					kernel_size = [5, 5, 96, 256],
 					bias_size = [256])
 
+		conv2 = tf.nn.lrn(conv2)
+		
 		conv2 = pooling_layer(
 					name = 'pooling2',
 					input_tensor = conv2,
-					k = 2)
-
-		conv2 = tf.nn.lrn(conv2)
+					kernel_size = [3, 3],
+					strides = [2, 2])
 
 		# define 3rd layer, convolutional layer, no max pooling
 		conv3 = conv_layer(
@@ -171,7 +184,8 @@ def alexnet(input_tensor, classes_num, dropout_prob=0.5):
 		conv5 = pooling_layer(
 					name = 'pooling3',
 					input_tensor = conv5,
-					k = 2)
+					kernel_size = [3, 3],
+					strides = [2, 2])
 
 		# define the 6th layer, full connected layer
 		conv5 = tf.reshape(conv5, shape=[batch_size, -1])
@@ -196,7 +210,8 @@ def alexnet(input_tensor, classes_num, dropout_prob=0.5):
 		logits = fc_layer(
 					name = 'logits',
 					input_tensor = fc2,
-					output_size = classes_num)
+					output_size = classes_num,
+					activate="none")
 
 	return logits
 
@@ -217,10 +232,12 @@ def loss(_logits, _labels, regularization_lambda):
 			regularization_loss += tf.nn.l2_loss(var)
 
 	regularization_loss = regularization_lambda * regularization_loss
+	tf.summary.scalar('reg loss', regularization_loss)
 	# calculate a loss tensor of size [batch_size]
 	batch_loss = tf.nn.softmax_cross_entropy_with_logits(logits=_logits, labels=_labels)
 	# calculate the mean of the loss tensor as the final output of loss
-	return tf.reduce_mean(batch_loss) + regularization_loss
+	final_loss = tf.reduce_mean(batch_loss) + regularization_loss
+	return final_loss, regularization_loss
 
 
 if __name__ == "__main__":
