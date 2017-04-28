@@ -57,6 +57,8 @@ target/
 
 # for my use
 tmp/
+model/
+log_file/
 # for image
 *.jpg
 *.png

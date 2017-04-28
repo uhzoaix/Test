@@ -63,7 +63,7 @@ class MyDNN():
 		# get images and label batch
 		with tf.name_scope("input"):
 			train_image_batch, train_label_batch = data_input.get_images_batch_with_labels(
-				data_path=data_path + "train/",
+				data_path = data_path + "train/",
 				shape=[200,200],
 				channels=3,
 				batch_size=batch_size,
@@ -88,8 +88,7 @@ class MyDNN():
 			tf.summary.histogram("pred", pred)
 
 		with tf.name_scope("loss"):
-			loss, reg_loss = net.loss(_logits=pred, _labels=y, regularization_lambda=self.reg_para_)
-			tf.summary.scalar("loss", loss)
+			loss, batch_loss, reg_loss = net.loss(_logits=pred, _labels=y, regularization_lambda=self.reg_para_)
 
 		with tf.name_scope("optimization"):
 			optimizer = tf.train.AdamOptimizer(learning_rate=lr).minimize(loss)
@@ -131,10 +130,10 @@ class MyDNN():
 				sess.run(optimizer, feed_dict = {x : image_batch, y : label_batch})
 
 				if step % self.display_step_ == 0:
-					l, reg_l, acc, summary = sess.run ([loss, reg_loss, accuracy, summary_op], feed_dict = {x : image_batch, y: label_batch})
+					b_l, reg_l, acc, summary = sess.run ([batch_loss, reg_loss, accuracy, summary_op], feed_dict = {x : image_batch, y: label_batch})
 
 					print("[Step{}]".format(step))
-					print("[Step{}]The batch loss is {:.6f}(reg loss{:.6f}), accuracy is {:.5f}".format(step, l, reg_l, acc))
+					print("[Step{}]The batch loss is {:.6f}, reg loss is {:.6f}, accuracy is {:.5f}".format(step, b_l, reg_l, acc))
 
 					summary_writer.add_summary(summary, step)
 
@@ -164,12 +163,11 @@ class MyDNN():
 
 			print("Optimization Finished!")
 			
-			log_name = self.get_log_name()
-			saver.save(sess, "./model/" + log_name + "_model.ckpt")
+			saver.save(sess, "./model/" + logname + "_model.ckpt")
 
 			coord.request_stop()
 			coord.join(threads)
-			print("Have save all variables to " + "./model/"+ log_name + "_model.ckpt")
+			print("Have save all variables to " + "./model/"+ logname + "_model.ckpt")
 
 		print("Max test accuracy:{}".format(max_test_acc), file=f)
 		print("End time: ", str(datetime.now()), file=f)
@@ -185,7 +183,7 @@ if __name__ == "__main__":
 	test_nn.init_parameters(
 				learning_rate=0.001, 
 				batch_size=50, 
-				max_iters=100000, 
+				max_iters=80000, 
 				regularization_lambda=0.0005)
 
 	log_name = test_nn.get_log_name()
@@ -195,9 +193,9 @@ if __name__ == "__main__":
 		if is_linux:
 			test_nn.train(
 					train_size = 3600, 
-					test_size=500, 
+					test_size=300,
 					data_path="/home/abaci/uhzoaix/data/",
-					logname = log_name)
+					logname = 'refined_' + log_name)
 		else :
 			test_nn.train(
 					train_size = 3600, 

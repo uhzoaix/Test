@@ -5,12 +5,11 @@ input and train network here
 
 import tensorflow as tf
 
+
 def conv_layer(input_tensor, kernel_size, bias_size, name, activate="relu", strides=1):
 	with tf.variable_scope(name) :
 		w = tf.get_variable("weights", shape=kernel_size,
 				initializer=tf.contrib.layers.xavier_initializer(uniform=True))
-
-		tf.summary.histogram(w.name, w)
 		
 		b = tf.get_variable("biases", shape=bias_size,
 				initializer=tf.contrib.layers.xavier_initializer(uniform=True))
@@ -18,7 +17,16 @@ def conv_layer(input_tensor, kernel_size, bias_size, name, activate="relu", stri
 		conv = tf.nn.conv2d(input_tensor, w, strides=[1, strides, strides, 1], padding="SAME")
 		result = tf.nn.bias_add(conv, b)
 
-		tf.summary.histogram(b.name, b)
+		w_check = tf.check_numerics(w, message = w.name + " checking")
+		b_check = tf.check_numerics(b, message = b.name + " checking")
+		try:
+			with tf.control_dependencies([w_check, b_check]):
+				tf.summary.histogram(w.name, w)
+				tf.summary.histogram(b.name, b)
+
+		except InvalidArgumentError:
+			tf.Print(w, message = w.name + " values here")
+			raise InvalidArgumentError
 
 		if activate == "relu":
 			result = tf.nn.relu(result)
@@ -236,8 +244,11 @@ def loss(_logits, _labels, regularization_lambda):
 	# calculate a loss tensor of size [batch_size]
 	batch_loss = tf.nn.softmax_cross_entropy_with_logits(logits=_logits, labels=_labels)
 	# calculate the mean of the loss tensor as the final output of loss
-	final_loss = tf.reduce_mean(batch_loss) + regularization_loss
-	return final_loss, regularization_loss
+	batch_loss = tf.reduce_mean(batch_loss)
+	tf.summary.scalar('batch loss', batch_loss)
+
+	whole_loss = batch_loss + regularization_loss
+	return whole_loss, batch_loss, regularization_loss
 
 
 if __name__ == "__main__":

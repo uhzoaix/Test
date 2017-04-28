@@ -88,13 +88,12 @@ def get_images_batch_with_labels(data_path, shape, channels, batch_size, data_si
 			images_filename[i] = data_path + line + ".jpg"
 			labels_filename[i] = int(line[0])
 
-		
+		# remove all Nones from lists 
 		if None in images_filename and None in labels_filename:
-			images_filename.remove(None)
-			labels_filename.remove(None)
+			images_filename = [val for val in images_filename if not val == None]
+			labels_filename = [val for val in labels_filename if not val == None]
 
 	# create filenames input queue, and return image and label batch
-
 	images_filename = tf.convert_to_tensor(images_filename, dtype=tf.string)
 	labels_filename = tf.convert_to_tensor(labels_filename, dtype=tf.int32)
 
