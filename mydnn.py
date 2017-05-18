@@ -174,10 +174,54 @@ class MyDNN():
 		f.close()
 
 
-if __name__ == "__main__":
-	# test_x = np.random.rand(8,5,5,3)
-	# test_y = np.random.rand(8,4)
+	def predict(self, model_path, image_path, label_dict = None):
+		# read image and preprocess
+		img_filename = tf.convert_to_tensor([image_path], dtype=tf.string)
 
+		input_queue = tf.train.string_input_producer(img_filename)
+
+		reader = tf.WholeFileReader()
+		key, value = reader.read(input_queue)
+
+		image = tf.image.decode_jpeg(value, channels = 3)
+		image = data_input.image_preprocessing(image, shape=[200,200], channels=3)
+		image_batch = tf.train.batch([image], batch_size = 1)
+
+		with tf.name_scope("Input"):
+			x = tf.placeholder(tf.float32, shape=[1,200,200,3])
+
+		# prediction result 
+		with tf.name_scope("Logits"):
+			logits = net.alexnet(x, classes_num=5)
+			pred = tf.nn.softmax(logits)
+
+		saver = tf.train.Saver()
+
+		with open("Prediction_log.txt", 'a+') as f:
+
+
+			with tf.Session() as sess:
+				coord = tf.train.Coordinator()
+				threads = tf.train.start_queue_runners(coord=coord)
+
+				saver.restore(sess, model_path)
+				print("Successfully restore model")
+
+				input_image = sess.run(image_batch)
+
+				prediction = sess.run(pred, feed_dict = {x : input_image})
+
+				print("Image: ", image_path)
+				print("result: ", prediction.tolist())
+				print("Image: ", image_path, file=f)
+				print("result: ", prediction.tolist(), file=f)
+				print("\n", file=f)
+
+				coord.request_stop()
+				coord.join(threads)
+
+
+def Train():
 	test_nn = MyDNN()
 
 	test_nn.init_parameters(
@@ -202,5 +246,33 @@ if __name__ == "__main__":
 					test_size=500, 
 					data_path="../data/cat/",
 					logdir = './tmp/alexnet')
+
+
+def Predict():
+	dnn = MyDNN()
+
+	dnn.init_parameters(
+				learning_rate=0.001, 
+				batch_size=50, 
+				max_iters=80000, 
+				regularization_lambda=0.0005)
+
+	model_dir = "/home/abaci/uhzoaix/DrugRecognition/Test/model/"
+	model_name = "refined_lr0.001_bs60_maxiters80000_reg0.0005_model.ckpt"
+
+	image_path = "/home/abaci/uhzoaix/data/test/4_7.jpg"
+
+	with tf.Graph().as_default():
+		is_linux = True
+
+		if is_linux:
+			dnn.predict(model_path = model_dir + model_name,
+						image_path = image_path)
+
+if __name__ == "__main__":
+	# test_x = np.random.rand(8,5,5,3)
+	# test_y = np.random.rand(8,4)
+
+	Predict()
 
 

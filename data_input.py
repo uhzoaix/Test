@@ -105,7 +105,7 @@ def get_images_batch_with_labels(data_path, shape, channels, batch_size, data_si
 	image = tf.image.decode_jpeg(file_content, channels=3)
 	label = input_queue[1]
 
-	image = image_prepocessing(image, shape=shape, channels=channels, distorted=True)
+	image = image_preprocessing(image, shape=shape, channels=channels, distorted=True)
 	image_batch, label_batch = tf.train.batch(
 		[image, label],
 		batch_size=batch_size)
@@ -138,7 +138,7 @@ def get_input_images_batch(image_path, shape, channels=3, batch_size=20, num_thr
 	return image_batch
 
 
-def image_prepocessing(decode_image, shape, channels, distorted=False):
+def image_preprocessing(decode_image, shape, channels, distorted=False):
 	w,h = shape
 	# convert the image to float
 	decode_image = tf.image.convert_image_dtype(decode_image, tf.float32)
